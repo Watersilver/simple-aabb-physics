@@ -13,6 +13,7 @@ const sht = new SpatialHashTable<{
   rayCol?: {normal: Vec2d, point: Vec2d};
   type: "static" | "dynamic" | "kinematic";
   vel?: Vec2d;
+  startPos?: Vec2d;
 }>(32);
 
 const graphics = new Graphics();
@@ -55,7 +56,6 @@ class MainLoop extends Loop {
   readonly debug = document.createElement('div');
 
   period = 0;
-  kinematicVel = new Vec2d(0, 0);
   grounded = false;
   jumped = false;
   showSprites = false;
@@ -66,6 +66,11 @@ class MainLoop extends Loop {
     idle: Sprite;
     jump: Sprite;
   }
+
+  biggestFPS = 0;
+  smallestFPS = Infinity;
+  biggestFPSView = this.biggestFPS;
+  smallestFPSView = this.biggestFPS;
 
   constructor() {
     super();
@@ -169,12 +174,21 @@ class MainLoop extends Loop {
 
   protected override onStart(): void {
     this.load();
+
+    setInterval(() => {
+      this.biggestFPSView = this.biggestFPS;
+      this.biggestFPS = 0;
+      this.smallestFPSView = this.smallestFPS;
+      this.smallestFPS = Infinity;
+    }, 1000);
   }
 
   protected override onFrameDraw(): void {
     const dt = this.input.isHeld("ShiftLeft") ? 0.01 : this.dt;
-
-    this.debug.innerHTML = instructions + "<br>fps: " + Math.floor(1 / dt);
+    const fps = Math.floor(1 / this.dt);
+    if (this.smallestFPS > fps) this.smallestFPS = fps;
+    if (this.biggestFPS < fps) this.biggestFPS = fps;
+    this.debug.innerHTML = instructions + "<br>fps: " + fps + "<br>max-fps: " + this.biggestFPSView + "<br>min-fps: " + this.smallestFPSView;
 
     this.period += Math.min(1/60, dt);
     while (this.period >= 2 * Math.PI) {
@@ -215,6 +229,7 @@ class MainLoop extends Loop {
     const pl = this.units.find(u => u.userData.type === "dynamic");
 
     for (const u of this.units) {
+      u.userData.startPos = u.userData.startPos || new Vec2d(u.l, u.t);
       u.userData.plRectVRect = false;
       delete u.userData.rayCol;
     }
@@ -222,12 +237,17 @@ class MainLoop extends Loop {
     // apply acceleration
     for (const d of this.units) {
       if (d.userData.type === "static") continue;
-      d.userData.vel = d.userData.vel || new Vec2d(0, 0);
+      const vel = d.userData.vel || new Vec2d(0, 0);
+      d.userData.vel = vel;
 
       if (d.userData.type === "kinematic") {
-        const speed = Math.cos(this.period) * 33;
-        this.kinematicVel.set(new Vec2d(1, 1).unit().mul(speed));
-        d.userData.vel = this.kinematicVel;
+        const displacement = new Vec2d(1, 1).unit().mul(-Math.cos(this.period) * 66);
+        if (d.userData.startPos) {
+          const lnext = d.userData.startPos.x + displacement.x;
+          const tnext = d.userData.startPos.y + displacement.y;
+          vel.x = lnext - d.l;
+          vel.y = tnext - d.t;
+        }
       } else {
         let g = gravity;
         if (d === pl && this.input.isHeld("KeyT") && pl.userData.vel?.y && pl.userData.vel.y < 0) {
