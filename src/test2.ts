@@ -22,6 +22,8 @@ const collidee = {pos: new Vec2d(0, 0), size: new Vec2d(0, 0), dr: new Vec2d(0, 
 
 const gravity = 500;
 
+const instructions = "WASD to move camera<br>Arrow keys to move ray<br>TFGH to move player<br>";
+
 class MainLoop extends Loop {
   readonly baseWidth = 1280;
   readonly baseHeight = 720;
@@ -91,7 +93,7 @@ class MainLoop extends Loop {
       this.debug.style.left = "0px";
       this.debug.style.top = "0px";
       this.debug.style.color = "red";
-      this.debug.innerHTML = "WASD to move camera<br>Arrow keys to move ray<br>TFGH to move player"
+      this.debug.innerHTML = instructions
       gameEl.append(this.debug);
 
       const sprToggle = document.createElement('button');
@@ -171,6 +173,8 @@ class MainLoop extends Loop {
 
   protected override onFrameDraw(): void {
     const dt = this.input.isHeld("ShiftLeft") ? 0.01 : this.dt;
+
+    this.debug.innerHTML = instructions + "<br>fps: " + Math.floor(1 / dt);
 
     this.period += Math.min(1/60, dt);
     while (this.period >= 2 * Math.PI) {
