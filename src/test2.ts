@@ -276,7 +276,7 @@ class MainLoop extends Loop {
       // pl.userData.vel.y = vel3.y * 44;
 
       if (vel3.y > 0) {
-        pl.userData.vel.y += pl.userData.vel.y * 0.1;
+        if (pl.userData.vel.y > 0) pl.userData.vel.y += pl.userData.vel.y * 0.1;
       } else if (vel3.y < 0 && this.grounded) {
         pl.userData.vel.y = -155
         this.jumped = true;
