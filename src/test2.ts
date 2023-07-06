@@ -8,6 +8,11 @@ import { Input, Loop, Vec2d } from "./engine"
 import SpatialHashTable from './engine/spatial-hash-table'
 import { dynamicRectVsDynamicRect, dynamicRectVsRect, rayVsRect, rectVsRect } from './engine/aabb'
 
+import { Sound } from './engine/sound'
+import song from './assets/physdemoloop.mp3'
+
+let started = false;
+
 const sht = new SpatialHashTable<{
   plRectVRect?: boolean;
   rayCol?: {normal: Vec2d, point: Vec2d};
@@ -16,14 +21,15 @@ const sht = new SpatialHashTable<{
   startPos?: Vec2d;
 }>(32);
 
+const sound = new Sound();
+const mp = sound.createMusicPlayer();
+
 const graphics = new Graphics();
 
 const collider = {pos: new Vec2d(0, 0), size: new Vec2d(0, 0), dr: new Vec2d(0, 0)};
 const collidee = {pos: new Vec2d(0, 0), size: new Vec2d(0, 0), dr: new Vec2d(0, 0)};
 
 const gravity = 500;
-
-const instructions = "WASD to move camera<br>Arrow keys to move ray<br>TFGH to move player<br>";
 
 class MainLoop extends Loop {
   readonly baseWidth = 1280;
@@ -98,19 +104,48 @@ class MainLoop extends Loop {
       this.debug.style.left = "0px";
       this.debug.style.top = "0px";
       this.debug.style.color = "red";
-      this.debug.innerHTML = instructions
       gameEl.append(this.debug);
 
-      const sprToggle = document.createElement('button');
-      sprToggle.style.position = "absolute";
-      sprToggle.style.margin = "20px";
-      sprToggle.style.right = "0px";
-      sprToggle.style.top = "0px";
-      sprToggle.style.fontWeight = "bold";
-      sprToggle.style.fontSize = "15px";
-      sprToggle.innerText = "Toggle sprites"
-      sprToggle.onclick = () => this.showSprites = !this.showSprites;
-      gameEl.append(sprToggle);
+      const sprToggle = document.getElementById('sprite-toggle');
+      sprToggle?.addEventListener('click', () => this.showSprites = !this.showSprites);
+
+      const infoToggle = document.getElementById('info-toggle');
+      const info = document.getElementById('info');
+      infoToggle?.addEventListener('click', () => {
+        if (!info) return;
+        if (info.style.display === "none") {
+          info.style.display = "block";
+        } else {
+          info.style.display = "none";
+        }
+      });
+
+      const toolsToggle = document.getElementById('tools-toggle');
+      const tools = document.getElementById('tools');
+      toolsToggle?.addEventListener('click', () => {
+        if (!tools) return;
+        if (tools.style.display === "none") {
+          tools.style.display = "flex";
+        } else {
+          tools.style.display = "none";
+        }
+      });
+
+      const masterVolume = document.getElementById('master-volume');
+      if (masterVolume instanceof HTMLInputElement) {
+        sound.setGain(parseFloat(masterVolume.value));
+        masterVolume.addEventListener('input', () => {
+          sound.setGain(parseFloat(masterVolume.value));
+        });
+      }
+
+      const musicVolume = document.getElementById('music-volume');
+      if (musicVolume instanceof HTMLInputElement) {
+        mp.setVolume(parseFloat(musicVolume.value));
+        musicVolume.addEventListener('input', () => {
+          mp.setVolume(parseFloat(musicVolume.value));
+        });
+      }
     }
   }
 
@@ -188,12 +223,14 @@ class MainLoop extends Loop {
     const fps = Math.floor(1 / this.dt);
     if (this.smallestFPS > fps) this.smallestFPS = fps;
     if (this.biggestFPS < fps) this.biggestFPS = fps;
-    this.debug.innerHTML = instructions + "<br>fps: " + fps + "<br>max-fps: " + this.biggestFPSView + "<br>min-fps: " + this.smallestFPSView;
+    if (started) this.debug.innerHTML = "fps: " + fps + "<br>max-fps: " + this.biggestFPSView + "<br>min-fps: " + this.smallestFPSView;
 
     this.period += Math.min(1/60, dt);
     while (this.period >= 2 * Math.PI) {
       this.period -= 2 * Math.PI;
     }
+
+    const pl = this.units.find(u => u.userData.type === "dynamic");
 
     this.input.update();
 
@@ -219,14 +256,22 @@ class MainLoop extends Loop {
     if (this.input.isHeld("KeyG")) v3y += 1;
     if (this.input.isHeld("KeyT")) v3y -= 1;
 
+    if (this.input.isPressed("KeyR") && pl) {
+      pl.l = -16;
+      pl.t = 11;
+      if (pl.userData.vel) {
+        pl.userData.vel.x = 0;
+        pl.userData.vel.y = 0;
+      }
+      sht.update(pl);
+    }
+
     const vel1 = new Vec2d(v1x, v1y).unit();
     const vel2 = new Vec2d(v2x, v2y).unit();
     const vel3 = new Vec2d(v3x, v3y).unit();
 
     this.ray.start = this.ray.start.add(vel1.mul(55 * dt));
     this.ray.end = this.ray.end.add(vel2.mul(55 * dt));
-
-    const pl = this.units.find(u => u.userData.type === "dynamic");
 
     for (const u of this.units) {
       u.userData.startPos = u.userData.startPos || new Vec2d(u.l, u.t);
@@ -235,7 +280,7 @@ class MainLoop extends Loop {
     }
 
     // apply acceleration
-    for (const d of this.units) {
+    if (started) for (const d of this.units) {
       if (d.userData.type === "static") continue;
       const vel = d.userData.vel || new Vec2d(0, 0);
       d.userData.vel = vel;
@@ -259,7 +304,6 @@ class MainLoop extends Loop {
 
     // Test ray
     for (const u of this.units) {
-
       collidee.pos.x = u.l;
       collidee.pos.y = u.t;
       collidee.size.x = u.w;
@@ -271,7 +315,18 @@ class MainLoop extends Loop {
       if (hit) u.userData.rayCol = col;
     }
 
-    if (pl?.userData.vel) {
+    // Clamp velocity
+    const maxspeed = 200 * 60;
+    for (const u of this.units) {
+      if (!u.userData.vel) continue;
+      if (u.userData.vel.length() > maxspeed) {
+        const maxvel = u.userData.vel.unit().mul(maxspeed);
+        u.userData.vel.x = maxvel.x;
+        u.userData.vel.y = maxvel.y;
+      }
+    }
+
+    if (started) if (pl?.userData.vel) {
       pl.userData.vel.x = vel3.x * 44;
       // pl.userData.vel.y = vel3.y * 44;
 
@@ -396,7 +451,7 @@ class MainLoop extends Loop {
     }
 
     // Move dynamics and kinematics
-    for (const d of this.units) {
+    if (started) for (const d of this.units) {
       if (d.userData.type === "static" || !d.userData.vel) continue;
 
       d.l += d.userData.vel.x * dt;
@@ -507,4 +562,30 @@ class MainLoop extends Loop {
 
 const ml = new MainLoop();
 ml.start();
-(window as any).mainLoop = ml;
+ml.input.stop();
+
+const startButton = document.createElement('div');
+startButton.style.position = "absolute";
+startButton.style.top = "0px";
+startButton.style.left = "0px";
+startButton.style.right = "0px";
+startButton.style.bottom = "0px";
+startButton.style.backdropFilter = "blur(2px)";
+startButton.style.cursor = "pointer";
+startButton.style.display = "grid";
+startButton.style.justifyItems = "center";
+startButton.style.alignItems = "center";
+const playDiv = document.createElement('div');
+playDiv.style.border = "90px solid transparent";
+playDiv.style.borderRight = "130px solid transparent";
+playDiv.style.borderLeft = "130px solid #ffffff66";
+playDiv.style.transform = "translateX(25%)";
+startButton.append(playDiv);
+startButton.onclick = () => {
+  startButton.remove();
+  ml.input.start();
+  (window as any).mainLoop = ml;
+  started = true;
+  setTimeout(() => {mp.setMusic(song)})
+}
+document.body.append(startButton);

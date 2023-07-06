@@ -46,6 +46,11 @@ module.exports = {
         test: /\.(woff|woff2|eot|ttf|otf)$/i,
         type: 'asset/resource',
       },
+      // load sounds
+      {
+        test: /\.(ogg|mp3|wav)$/i,
+        type: 'asset/resource',
+      }
     ],
   },
   resolve: {
