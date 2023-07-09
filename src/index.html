@@ -26,6 +26,23 @@
     </div>
     <div id="tools" style="padding:10px; display:none; flex-direction:column; align-items:end; gap: 10px; background-color: #ff55aa44; border-radius:10px;">
       <button id="sprite-toggle" style="font-weight:bold;">Toggle Sprite</button>
+      <fieldset style="color:white;">
+        <legend style="color:white;">Select a bgm:</legend>
+        <div>
+          <input type="radio" id="phys" name="music" value="phys" checked>
+          <label for="phys" style="color:white;">Physics</label>
+        </div>
+    
+        <div>
+          <input type="radio" id="rayman" name="music" value="rayman">
+          <label for="rayman" style="color:white;">Rayman</label>
+        </div>
+    
+        <div>
+          <input type="radio" id="silence" name="music" value="silence">
+          <label for="silence" style="color:white;">Silence</label>
+        </div>
+      </fieldset>
       <label for="master-volume" style="color:white;">
         Master volume
       </label>
@@ -33,7 +50,7 @@
       <label for="music-volume" style="color:white;">
         Music volume
       </label>
-      <input type="range" id="music-volume" min="0" max="1" value="1" step="any">
+      <input type="range" id="music-volume" min="0" max="1" value="0.5" step="any">
     </div>
   </section>
 </body>

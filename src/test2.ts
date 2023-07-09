@@ -1,7 +1,7 @@
 import './style.css'
 import './config'
 
-import {Assets, Sprite, AnimatedSprite, autoDetectRenderer, Container, Graphics, Filter} from "pixi.js"
+import {Sprite, AnimatedSprite, autoDetectRenderer, Container, Graphics, Filter} from "pixi.js"
 import loadPlayerSpritesheet from "./assets/load-player-spritesheet"
 import { Input, Loop, Vec2d } from "./engine"
 
@@ -9,7 +9,8 @@ import SpatialHashTable from './engine/spatial-hash-table'
 import { dynamicRectVsDynamicRect, dynamicRectVsRect, rayVsRect, rectVsRect } from './engine/aabb'
 
 import { Sound } from './engine/sound'
-import song from './assets/physdemoloop.mp3'
+import song from './assets/physdemo.mp3'
+import song2 from "./assets/rayman.mp3"
 
 let started = false;
 
@@ -22,9 +23,12 @@ const sht = new SpatialHashTable<{
 }>(32);
 
 const sound = new Sound();
-const mp = sound.createMusicPlayer();
+const mp = sound.createMusicPlayer([song, song2]);
 
 const graphics = new Graphics();
+
+// Replace with non empty function when dom is ready
+let playMusicFromRadios = () => {};
 
 const collider = {pos: new Vec2d(0, 0), size: new Vec2d(0, 0), dr: new Vec2d(0, 0)};
 const collidee = {pos: new Vec2d(0, 0), size: new Vec2d(0, 0), dr: new Vec2d(0, 0)};
@@ -145,6 +149,38 @@ class MainLoop extends Loop {
         musicVolume.addEventListener('input', () => {
           mp.setVolume(parseFloat(musicVolume.value));
         });
+      }
+
+      const radios = document.getElementsByName("music");
+      const radioHandlers: (() => void)[] = [];
+      playMusicFromRadios = () => radioHandlers.forEach(r => r());
+      for (const radio of radios) {
+        if (radio instanceof HTMLInputElement) {
+          const playMusicFromRadio = () => {
+            if (radio.checked) {
+              if (radio.value === "phys") {
+                mp.setMusic({
+                  fadeOutPrev: 2,
+                  src: song,
+                  loopStart: 22.736
+                });
+              } else if (radio.value === "rayman") {
+                mp.setMusic({
+                  fadeOutPrev: 0.3,
+                  silence: 1.7,
+                  src: song2,
+                  loopStart: 12.826
+                });
+              } else {
+                mp.setMusic({
+                  fadeOutPrev: 3,
+                });
+              }
+            }
+          }
+          radio.addEventListener('change', playMusicFromRadio);
+          radioHandlers.push(playMusicFromRadio);
+        }
       }
     }
   }
@@ -510,7 +546,7 @@ class MainLoop extends Loop {
       }
     }
 
-    if (this.grounded && pl) {
+    if (this.grounded && pl && !this.showSprites) {
       graphics.lineStyle(1, 0xff0000, 1);
       graphics.beginFill(0xff0000, 0);
       graphics.moveTo(pl.l, pl.t + pl.h);
@@ -581,11 +617,15 @@ playDiv.style.borderRight = "130px solid transparent";
 playDiv.style.borderLeft = "130px solid #ffffff66";
 playDiv.style.transform = "translateX(25%)";
 startButton.append(playDiv);
-startButton.onclick = () => {
-  startButton.remove();
-  ml.input.start();
-  (window as any).mainLoop = ml;
-  started = true;
-  setTimeout(() => {mp.setMusic(song)})
-}
+mp.preloadDone().then(() => {
+  console.log("music loaded");
+  startButton.onclick = () => {
+    startButton.remove();
+    ml.input.start();
+    (window as any).mainLoop = ml;
+    started = true;
+    sound.init();
+    playMusicFromRadios();
+  }
+});
 document.body.append(startButton);
