@@ -16,11 +16,11 @@
       <button id="info-toggle" style="font-weight:bold;">?</button>
     </div>
     <div id="info" style="color:#fff; display:none; background-color: #aaffaa44; border-radius:10px; padding:10px;">
-      WASD to move camera
+      WASD to move player
       <br>
-      Arrow keys to move ray
+      Arrow keys to move camera
       <br>
-      TFGH to move player
+      TFGH to move ray
       <br>
       R to reset position
     </div>
@@ -35,7 +35,7 @@
     
         <div>
           <input type="radio" id="rayman" name="music" value="rayman">
-          <label for="rayman" style="color:white;">Rayman</label>
+          <label for="rayman" style="color:white;">Rocky Peaks</label>
         </div>
     
         <div>
@@ -46,11 +46,15 @@
       <label for="master-volume" style="color:white;">
         Master volume
       </label>
-      <input type="range" id="master-volume" min="0" max="2" step="any">
+      <input type="range" id="master-volume" min="0" max="1" value="0.9" step="any">
       <label for="music-volume" style="color:white;">
         Music volume
       </label>
       <input type="range" id="music-volume" min="0" max="1" value="0.5" step="any">
+      <label for="sound-volume" style="color:white;">
+        Sound volume
+      </label>
+      <input type="range" id="sound-volume" min="0" max="1" value="0.70" step="any">
     </div>
   </section>
 </body>

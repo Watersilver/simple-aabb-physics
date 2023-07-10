@@ -8,9 +8,13 @@ import { Input, Loop, Vec2d } from "./engine"
 import SpatialHashTable from './engine/spatial-hash-table'
 import { dynamicRectVsDynamicRect, dynamicRectVsRect, rayVsRect, rectVsRect } from './engine/aabb'
 
-import { Sound } from './engine/sound'
+import AudioController from './engine/audio-controller'
 import song from './assets/physdemo.mp3'
 import song2 from "./assets/rayman.mp3"
+
+import sJump from "./assets/jump.wav"
+import sLand from "./assets/land.wav"
+import step from "./assets/step.wav"
 
 let started = false;
 
@@ -22,8 +26,17 @@ const sht = new SpatialHashTable<{
   startPos?: Vec2d;
 }>(32);
 
-const sound = new Sound();
-const mp = sound.createMusicPlayer([song, song2]);
+const audCont = new AudioController();
+const mp = audCont.createMusicPlayer({
+  phys: song,
+  ray: song2
+});
+const sp = audCont.createSoundPlayer({
+  jump: sJump,
+  land: sLand,
+  step
+});
+sp.setVolume(0.5);
 
 const graphics = new Graphics();
 
@@ -68,11 +81,11 @@ class MainLoop extends Loop {
   period = 0;
   grounded = false;
   jumped = false;
-  showSprites = false;
+  showSprites = true;
 
   plSpritesContainer = new Container();
   plSprites?: {
-    walk: AnimatedSprite;
+    walk: AnimatedSprite & {prevFrame?: number; prevSound?: number};
     idle: Sprite;
     jump: Sprite;
   }
@@ -137,9 +150,9 @@ class MainLoop extends Loop {
 
       const masterVolume = document.getElementById('master-volume');
       if (masterVolume instanceof HTMLInputElement) {
-        sound.setGain(parseFloat(masterVolume.value));
+        audCont.setVolume(parseFloat(masterVolume.value));
         masterVolume.addEventListener('input', () => {
-          sound.setGain(parseFloat(masterVolume.value));
+          audCont.setVolume(parseFloat(masterVolume.value));
         });
       }
 
@@ -148,6 +161,14 @@ class MainLoop extends Loop {
         mp.setVolume(parseFloat(musicVolume.value));
         musicVolume.addEventListener('input', () => {
           mp.setVolume(parseFloat(musicVolume.value));
+        });
+      }
+
+      const soundVolume = document.getElementById('sound-volume');
+      if (soundVolume instanceof HTMLInputElement) {
+        sp.setVolume(parseFloat(soundVolume.value));
+        soundVolume.addEventListener('input', () => {
+          sp.setVolume(parseFloat(soundVolume.value));
         });
       }
 
@@ -161,14 +182,14 @@ class MainLoop extends Loop {
               if (radio.value === "phys") {
                 mp.setMusic({
                   fadeOutPrev: 2,
-                  src: song,
+                  name: 'phys',
                   loopStart: 22.736
                 });
               } else if (radio.value === "rayman") {
                 mp.setMusic({
                   fadeOutPrev: 0.3,
                   silence: 1.7,
-                  src: song2,
+                  name: 'ray',
                   loopStart: 12.826
                 });
               } else {
@@ -277,20 +298,20 @@ class MainLoop extends Loop {
     let v3x = 0;
     let v3y = 0;
 
-    if (this.input.isHeld("KeyD")) v1x += 1;
-    if (this.input.isHeld("KeyA")) v1x -= 1;
-    if (this.input.isHeld("KeyS")) v1y += 1;
-    if (this.input.isHeld("KeyW")) v1y -= 1;
+    if (this.input.isHeld("ArrowRight")) v1x += 1;
+    if (this.input.isHeld("ArrowLeft")) v1x -= 1;
+    if (this.input.isHeld("ArrowDown")) v1y += 1;
+    if (this.input.isHeld("ArrowUp")) v1y -= 1;
 
-    if (this.input.isHeld("ArrowRight")) v2x += 1;
-    if (this.input.isHeld("ArrowLeft")) v2x -= 1;
-    if (this.input.isHeld("ArrowDown")) v2y += 1;
-    if (this.input.isHeld("ArrowUp")) v2y -= 1;
+    if (this.input.isHeld("KeyH")) v2x += 1;
+    if (this.input.isHeld("KeyF")) v2x -= 1;
+    if (this.input.isHeld("KeyG")) v2y += 1;
+    if (this.input.isHeld("KeyT")) v2y -= 1;
 
-    if (this.input.isHeld("KeyH")) v3x += 1;
-    if (this.input.isHeld("KeyF")) v3x -= 1;
-    if (this.input.isHeld("KeyG")) v3y += 1;
-    if (this.input.isHeld("KeyT")) v3y -= 1;
+    if (this.input.isHeld("KeyD")) v3x += 1;
+    if (this.input.isHeld("KeyA")) v3x -= 1;
+    if (this.input.isHeld("KeyS")) v3y += 1;
+    if (this.input.isHeld("KeyW")) v3y -= 1;
 
     if (this.input.isPressed("KeyR") && pl) {
       pl.l = -16;
@@ -331,7 +352,7 @@ class MainLoop extends Loop {
         }
       } else {
         let g = gravity;
-        if (d === pl && this.input.isHeld("KeyT") && pl.userData.vel?.y && pl.userData.vel.y < 0) {
+        if (d === pl && this.input.isHeld("KeyW") && pl.userData.vel?.y && pl.userData.vel.y < 0) {
           g *= 0.5;
         }
         d.userData.vel.y += g * dt;
@@ -371,6 +392,7 @@ class MainLoop extends Loop {
       } else if (vel3.y < 0 && this.grounded) {
         pl.userData.vel.y = -155
         this.jumped = true;
+        sp.play('jump', {sleep: 0.2});
       }
     }
 
@@ -464,6 +486,7 @@ class MainLoop extends Loop {
       }
 
       // Test if grounded
+      const groundedPrev = this.grounded;
       this.grounded = false;
       collider.dr.x = 0;
       collider.dr.y = 1;
@@ -483,6 +506,9 @@ class MainLoop extends Loop {
           this.jumped = false;
           break;
         }
+      }
+      if (!groundedPrev && this.grounded) {
+        sp.play('land');
       }
     }
 
@@ -585,6 +611,22 @@ class MainLoop extends Loop {
       this.plSprites.walk.animationSpeed = 12 * dt * xspeed / 44;
       if (!this.grounded) this.plSprites.walk.animationSpeed = 0;
 
+      if (anim === 'walk' && this.grounded && this.showSprites) {
+        if (
+          this.plSprites.walk.prevFrame !== this.plSprites.walk.currentFrame
+          && this.plSprites.walk.currentFrame === 2
+        ) {
+          sp.play('step')
+          this.plSprites.walk.prevSound = this.plSprites.walk.prevSound || 0;
+          this.plSprites.walk.prevSound++;
+          if (this.plSprites.walk.prevSound > 3) {
+            this.plSprites.walk.prevSound = 0;
+          }
+        }
+      }
+
+      this.plSprites.walk.prevFrame = this.plSprites.walk.currentFrame;
+
       this.plSpritesContainer.position.set(pl.l + pl.w * 0.5, pl.t + pl.h * 0.5);
     }
 
@@ -617,14 +659,14 @@ playDiv.style.borderRight = "130px solid transparent";
 playDiv.style.borderLeft = "130px solid #ffffff66";
 playDiv.style.transform = "translateX(25%)";
 startButton.append(playDiv);
-mp.preloadDone().then(() => {
+audCont.loadingDone().then(() => {
   console.log("music loaded");
   startButton.onclick = () => {
     startButton.remove();
     ml.input.start();
     (window as any).mainLoop = ml;
     started = true;
-    sound.init();
+    audCont.init();
     playMusicFromRadios();
   }
 });
