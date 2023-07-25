@@ -94,6 +94,7 @@ class MainLoop extends Loop {
   smallestFPS = Infinity;
   biggestFPSView = this.biggestFPS;
   smallestFPSView = this.biggestFPS;
+  floorSpeed = 0;
 
   constructor() {
     super();
@@ -492,6 +493,7 @@ class MainLoop extends Loop {
       collider.dr.y = 1;
       collidee.dr.x = 0;
       collidee.dr.y = 0;
+      this.floorSpeed = 0;
       for (const u of sht.findNear(pl.l, pl.t + 1, pl.w, pl.h)) {
         if (u === pl) continue;
 
@@ -504,12 +506,19 @@ class MainLoop extends Loop {
         if (hit) {
           this.grounded = true;
           this.jumped = false;
+          if (u.userData.vel) {
+            this.floorSpeed += u.userData.vel.x;
+          }
           break;
         }
       }
+
       if (!groundedPrev && this.grounded) {
         sp.play('land');
       }
+
+      // Move along floor
+      if (pl.userData.vel) pl.userData.vel.x += this.floorSpeed;
     }
 
     // Move dynamics and kinematics
@@ -588,7 +597,7 @@ class MainLoop extends Loop {
     }
 
     if (this.plSprites && pl) {
-      const xspeed = Math.abs(pl.userData.vel?.x ?? 0);
+      const xspeed = Math.abs((pl.userData.vel?.x ?? 0) - this.floorSpeed);
 
       if (vel3.x > 0) {
         this.plSpritesContainer.scale.x = 1;
