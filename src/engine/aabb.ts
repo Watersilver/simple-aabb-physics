@@ -107,8 +107,9 @@ export function dynamicRectVsRect(rect1: DynamicRect, rect2: RectData):
   }, expandedRect);
 
   if (res[0]) {
+    const acceptableNegativeTime = -3e-12;
     // adjustment: accept small negative times, because otherwise I've noticed there is failure to collide sometimes
-    if (res[1].time >= -1.1 && res[1].time < 1) return res;
+    if (res[1].time >= acceptableNegativeTime && res[1].time < 1) return res;
     return [false, null];
   }
 
